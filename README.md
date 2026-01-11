@@ -1,115 +1,170 @@
-# HandBrake Video Encoder Web App
+# 🎬 HandBrake Video Encoder Studio
 
-A Next.js web application for encoding videos using HandBrake on a local server. Upload videos through your browser, select encoding settings, and download the encoded files.
+A professional, self-hosted web application for video encoding powered by HandBrake CLI. Built with Next.js, this application provides a beautiful dark-themed interface with comprehensive encoding controls, real-time progress tracking, and live console logs.
 
-## Features
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Next.js](https://img.shields.io/badge/Next.js-14-black)
+![Docker](https://img.shields.io/badge/Docker-ready-2496ED)
+![HandBrake](https://img.shields.io/badge/HandBrake-CLI-orange)
 
-- 🎥 Upload video files via browser
-- ⚙️ Multiple encoding presets (H.264 and H.265)
-- 📥 Direct download of encoded files
-- 🧹 Automatic cleanup of uploaded files after encoding
-- 🐳 Fully Dockerized for easy deployment
-- 🏠 Runs completely locally on your home server
+## ✨ Features
 
-## Encoding Presets
+### 🎨 Modern UI
+- **Professional dark theme** with slate color scheme
+- **Two-column responsive layout** for optimal workflow
+- **Real-time progress bars** with percentage display
+- **Live console logs** for detailed encoding feedback
+- **Collapsible advanced settings** panel
+- **Smooth animations** and transitions
 
-- **H.264 Normal Quality**: x264 codec, RF 23
-- **H.264 High Quality**: x264 codec, RF 20
-- **H.265 Normal Quality**: x265 codec, RF 25
-- **H.265 High Quality**: x265 codec, RF 22
+### 🎥 Video Encoding
+- **6 video codecs**: H.264 (x264), H.265 (x265), H.265 10-bit, VP9, MPEG-4, MPEG-2
+- **Variable quality control** (RF 0-51 slider)
+- **9 encoding speed presets**: Ultra Fast to Very Slow
+- **Custom resolution** settings (width × height)
+- **Frame rate control**: Auto, 23.976, 24, 25, 29.97, 30, 50, 60 fps
+- **Deinterlace & Decomb** options
+- **Denoise presets**: None, Light, Medium, Strong
 
-## Requirements
+### 🔊 Audio Encoding
+- **8 audio codecs**: AAC, AC3, MP3, Opus, Vorbis, FLAC, plus passthrough modes
+- **Adjustable bitrate**: 64-320 kbps
 
-- Docker and Docker Compose (for Docker deployment)
-- OR Node.js 20+ and HandBrakeCLI installed locally (for manual deployment)
+### 📦 Output Options
+- **3 container formats**: MP4, MKV, WebM
+- **Automatic file cleanup** after encoding
+- **Direct download** of encoded files
 
-## Quick Start with Docker
+### 🚀 Technical Features
+- **Background encoding** (non-blocking)
+- **Job management system** with status tracking
+- **Real-time log streaming** from HandBrake
+- **Progress parsing** from HandBrake output
+- **Docker deployment** with single command
+- **Persistent storage** with volume mounting
 
-1. Clone or download this project
-2. Navigate to the project directory
-3. Build and run with Docker Compose:
+### 🚀 Technical Features
+- **Background encoding** (non-blocking)
+- **Job management system** with status tracking
+- **Real-time log streaming** from HandBrake
+- **Progress parsing** from HandBrake output
+- **Docker deployment** with single command
+- **Persistent storage** with volume mounting
 
+## 📸 Screenshots
+
+*Beautiful dark-themed interface with professional controls*
+
+## 🚀 Quick Start
+
+### Using Docker (Recommended)
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/ITCCANIS/handbrake-encoder-studio.git
+   cd handbrake-encoder-studio
+   ```
+
+2. **Start the application**
+   ```bash
+   docker compose up -d
+   ```
+
+3. **Access the application**
+   Open your browser and navigate to `http://localhost:3000`
+
+That's it! The application includes HandBrakeCLI pre-installed in the Docker image.
+
+### Stop the application
 ```bash
-docker-compose up -d
+docker compose down
 ```
 
-4. Access the application at `http://localhost:3000`
-
-To stop the application:
-
-```bash
-docker-compose down
-```
-
-## Manual Installation (Without Docker)
+## 🛠️ Manual Installation
 
 ### Prerequisites
 
-Install HandBrakeCLI on your system:
+- Node.js 20 or higher
+- HandBrakeCLI installed on your system
 
-**Linux (Ubuntu/Debian):**
+#### Install HandBrakeCLI
+
+**Ubuntu/Debian:**
 ```bash
 sudo apt-get update
 sudo apt-get install handbrake-cli
 ```
 
-**Linux (Alpine):**
-```bash
-apk add handbrake
-```
-
-**macOS:**
+**macOS (Homebrew):**
 ```bash
 brew install handbrake
 ```
 
+**Alpine Linux:**
+```bash
+apk add handbrake
+```
+
 ### Setup
 
-1. Install dependencies:
-```bash
-npm install
+1. **Clone and install dependencies**
+   ```bash
+   git clone https://github.com/ITCCANIS/handbrake-encoder-studio.git
+   cd handbrake-encoder-studio
+   npm install
+   ```
+
+2. **Create required directories**
+   ```bash
+   mkdir -p uploads output
+   chmod 755 uploads output
+   ```
+
+3. **Run in development mode**
+   ```bash
+   npm run dev
+   ```
+
+4. **Or build and run in production**
+   ```bash
+   npm run build
+   npm start
+   ```
+
+5. **Access at** `http://localhost:3000`
+
+## 📖 Usage Guide
+
+1. **Upload Video**: Click the upload area or drag and drop a video file
+2. **Configure Encoding**:
+   - Select video encoder (H.264, H.265, VP9, etc.)
+   - Adjust quality using the RF slider (lower = better quality)
+   - Choose encoding speed preset
+   - Select output format (MP4, MKV, WebM)
+3. **Advanced Settings** (optional):
+   - Configure audio encoder and bitrate
+   - Set custom resolution
+   - Adjust frame rate
+   - Enable deinterlace, decomb, or denoise filters
+4. **Start Encoding**: Click the "Start Encoding" button
+5. **Monitor Progress**: Watch real-time progress and view console logs
+6. **Download**: Once complete, download your encoded video
+
+## 🏗️ Project Structure
+
 ```
-
-2. Create required directories:
-```bash
-mkdir -p uploads output
-```
-
-3. Run in development mode:
-```bash
-npm run dev
-```
-
-4. Or build and run in production mode:
-```bash
-npm run build
-npm start
-```
-
-5. Access the application at `http://localhost:3000`
-
-## Usage
-
-1. Open the web interface in your browser
-2. Click "Choose File" and select a video file from your computer
-3. Select an encoding preset from the dropdown menu
-4. Click "Encode Video" to start the encoding process
-5. Wait for the encoding to complete (status will be displayed)
-6. Click "Download Encoded Video" to download your encoded file
-
-## Project Structure
-
-```
-handbrake-project/
+handbrake-encoder-studio/
 ├── app/
 │   ├── api/
 │   │   ├── upload/route.ts      # File upload endpoint
 │   │   ├── encode/route.ts      # Video encoding endpoint
+│   │   ├── status/route.ts      # Job status polling endpoint
 │   │   └── download/route.ts    # File download endpoint
-│   ├── layout.tsx               # Root layout
-│   └── page.tsx                 # Main UI page
+│   ├── layout.tsx               # Root layout with styles
+│   └── page.tsx                 # Main UI component
 ├── lib/
-│   └── presets.ts               # Encoding presets configuration
+│   ├── presets.ts               # Encoding presets & options
+│   └── jobManager.ts            # Job tracking system
 ├── uploads/                     # Temporary upload directory
 ├── output/                      # Encoded files directory
 ├── Dockerfile                   # Docker image configuration
@@ -119,12 +174,48 @@ handbrake-project/
 └── next.config.js               # Next.js configuration
 ```
 
-## API Endpoints
+## 🔧 Configuration
 
-### POST /api/upload
+### Environment Variables
+
+Create a `.env.local` file for custom configuration:
+
+```env
+PORT=3000
+NODE_ENV=production
+```
+
+### Custom Encoding Presets
+
+Edit `lib/presets.ts` to add or modify encoding options:
+
+```typescript
+export const ENCODERS = [
+  { value: 'x264', label: 'H.264 (x264)' },
+  // Add your custom encoder
+];
+```
+
+### Docker Configuration
+
+Modify `docker-compose.yml` to change ports or volumes:
+
+```yaml
+services:
+  handbrake-encoder:
+    ports:
+      - "3000:3000"  # Change the first port to use a different port
+    volumes:
+      - ./uploads:/app/uploads:rw
+      - ./output:/app/output:rw
+```
+
+## 📡 API Endpoints
+
+### POST `/api/upload`
 Upload a video file to the server.
 
-**Request:** FormData with `file` field
+**Request:** `multipart/form-data` with `file` field
 
 **Response:**
 ```json
@@ -135,14 +226,22 @@ Upload a video file to the server.
 }
 ```
 
-### POST /api/encode
-Encode an uploaded video file.
+### POST `/api/encode`
+Start encoding a video with specified options.
 
 **Request:**
 ```json
 {
   "filename": "1234567890_video.mp4",
-  "preset": "h264_normal"
+  "options": {
+    "encoder": "x264",
+    "quality": 23,
+    "preset": "medium",
+    "format": "mp4",
+    "audioBitrate": 160,
+    "audioEncoder": "av_aac"
+  },
+  "jobId": "job_1234567890"
 }
 ```
 
@@ -150,75 +249,119 @@ Encode an uploaded video file.
 ```json
 {
   "success": true,
-  "message": "Encoding completed successfully",
-  "outputFilename": "encoded_1234567890_video.mp4",
-  "downloadUrl": "/api/download?file=encoded_1234567890_video.mp4"
+  "jobId": "job_1234567890",
+  "message": "Encoding started"
 }
 ```
 
-### GET /api/download?file=<filename>
+### GET `/api/status?jobId=<jobId>`
+Get the current status of an encoding job.
+
+**Response:**
+```json
+{
+  "id": "job_1234567890",
+  "filename": "video.mp4",
+  "status": "encoding",
+  "progress": 45.2,
+  "logs": ["Starting encoding...", "Encoding frame 100..."],
+  "startTime": 1234567890000
+}
+```
+
+### GET `/api/download?file=<filename>`
 Download an encoded video file.
 
-**Response:** Video file (video/mp4)
+**Response:** Video file with appropriate headers
 
-## Configuration
+## 🐳 Docker Details
 
-### Adding Custom Presets
+The Docker setup includes:
+- **Base image**: Node.js 20 Alpine
+- **HandBrakeCLI**: Pre-installed
+- **Multi-stage build**: Optimized image size
+- **Volume mounts**: Persistent storage for uploads/output
+- **Non-root user**: Security best practices
 
-Edit `lib/presets.ts` to add or modify encoding presets:
-
-```typescript
-export const ENCODING_PRESETS: Record<string, EncodingPreset> = {
-  my_preset: {
-    name: 'My Custom Preset',
-    codec: 'x264',
-    quality: 'RF 20',
-    args: ['-e', 'x264', '-q', '20', '-B', '192'],
-  },
-  // ... more presets
-};
-```
-
-### Docker Volumes
-
-The Docker setup uses volumes for persistent storage:
-- `./uploads`: Temporary storage for uploaded files
-- `./output`: Storage for encoded files
-
-## Security Notes
-
-- This application is designed for local network use only
-- No authentication is implemented
-- File upload size limits should be configured based on your needs
-- Consider adding authentication if exposing to a wider network
-
-## Troubleshooting
-
-### HandBrakeCLI not found
-Ensure HandBrakeCLI is installed and in your system PATH. Test with:
+### Build the image manually:
 ```bash
-HandBrakeCLI --version
+docker build -t handbrake-encoder .
 ```
 
-### Permission errors with uploads/output directories
-Ensure the directories exist and have proper permissions:
+### Run without Docker Compose:
 ```bash
-mkdir -p uploads output
-chmod 755 uploads output
+docker run -d \
+  -p 3000:3000 \
+  -v $(pwd)/uploads:/app/uploads:rw \
+  -v $(pwd)/output:/app/output:rw \
+  --name handbrake-encoder \
+  handbrake-encoder
 ```
 
-### Docker build fails
-Make sure Docker is running and you have sufficient disk space:
-```bash
-docker system prune -a
-```
+## 🔒 Security Considerations
 
-## License
+- **Local network only**: This application is designed for local/private network use
+- **No authentication**: Authentication is not implemented by default
+- **File size limits**: Consider adding upload size limits based on your needs
+- **Network exposure**: Do not expose directly to the internet without adding authentication and HTTPS
+- **Path traversal protection**: Download endpoint includes basic path traversal prevention
 
-This project is provided as-is for personal use. HandBrake is licensed under GPL v2.
+For production use on public networks, consider adding:
+- Authentication middleware (OAuth, JWT, etc.)
+- HTTPS/TLS encryption
+- Rate limiting
+- File upload size restrictions
+- User session management
 
-## Support
+## 🤝 Contributing
 
-For issues with:
-- HandBrakeCLI: Visit https://handbrake.fr/
-- Next.js: Visit https://nextjs.org/docs
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## 📝 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+HandBrake is licensed under GPL v2. This project is a web interface for HandBrake and does not modify HandBrake itself.
+
+## 🙏 Acknowledgments
+
+- [HandBrake](https://handbrake.fr/) - The open-source video transcoder
+- [Next.js](https://nextjs.org/) - The React framework
+- [Docker](https://www.docker.com/) - Containerization platform
+
+## 📧 Support
+
+If you encounter any issues or have questions:
+- Open an issue on GitHub
+- Check existing issues for solutions
+- Review the HandBrake documentation for encoding-related questions
+
+## 🗺️ Roadmap
+
+- [ ] Queue system for multiple video encoding
+- [ ] Preset templates save/load functionality
+- [ ] Video preview before/after encoding
+- [ ] Encoding statistics and history
+- [ ] Email notifications on completion
+- [ ] Multi-user support with authentication
+- [ ] Batch processing capabilities
+- [ ] Hardware acceleration support (NVENC, QSV)
+
+## ⚡ Performance Tips
+
+- Use **faster presets** for quicker encoding (but larger files)
+- Use **H.265** for better compression (but slower encoding)
+- **Lower RF values** = better quality but larger files
+- **Hardware specs matter**: CPU-intensive process
+- Consider **resolution downscaling** for faster encoding
+- Use **audio passthrough** when possible to save processing time
+
+---
+
+**Made with ❤️ for the video encoding community**
