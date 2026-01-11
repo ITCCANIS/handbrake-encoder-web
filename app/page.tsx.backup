@@ -1,0 +1,1192 @@
+'use client';
+
+import { useState, useEffect, useRef } from 'react';
+import {
+  ENCODERS,
+  AUDIO_ENCODERS,
+  FRAMERATES,
+  DENOISE_PRESETS,
+  OUTPUT_FORMATS,
+  QUICK_PRESETS,
+  EncodingOptions,
+} from '@/lib/presets';
+
+interface EncodingJob {
+  id: string;
+  filename: string;
+  preset: string;
+  status: 'uploading' | 'queued' | 'encoding' | 'completed' | 'failed';
+  progress: number;
+  logs: string[];
+  error?: string;
+  outputFilename?: string;
+  downloadUrl?: string;
+  startTime: number;
+}
+
+export default function Home() {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [currentJob, setCurrentJob] = useState<EncodingJob | null>(null);
+  const [error, setError] = useState<string>('');
+  const [showLogs, setShowLogs] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const logsEndRef = useRef<HTMLDivElement>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Encoding options
+  const [options, setOptions] = useState<EncodingOptions>({
+    preset: 'medium',
+    encoder: 'x264',
+    quality: 23,
+    audioBitrate: 160,
+    audioEncoder: 'av_aac',
+    deinterlace: false,
+    decomb: false,
+    denoise: 'none',
+    subtitles: 'none',
+    format: 'mp4',
+  });
+
+  // Auto-scroll logs
+  useEffect(() => {
+    if (showLogs && logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [currentJob?.logs, showLogs]);
+
+  // Poll for job status
+  useEffect(() => {
+    if (currentJob && (currentJob.status === 'encoding' || currentJob.status === 'queued')) {
+      pollIntervalRef.current = setInterval(async () => {
+        try {
+          const response = await fetch(`/api/status?jobId=${currentJob.id}`);
+          if (response.ok) {
+            const job = await response.json();
+            setCurrentJob(job);
+            
+            if (job.status === 'completed' || job.status === 'failed') {
+              if (pollIntervalRef.current) {
+                clearInterval(pollIntervalRef.current);
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Failed to fetch job status:', err);
+        }
+      }, 1000);
+
+      return () => {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+        }
+      };
+    }
+  }, [currentJob?.id, currentJob?.status]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+      setError('');
+      setCurrentJob(null);
+    }
+  };
+
+  const handleEncode = async () => {
+    if (!selectedFile) {
+      setError('Please select a file first');
+      return;
+    }
+
+    try {
+      setError('');
+      const jobId = `job_${Date.now()}`;
+      
+      setUploading(true);
+      
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      const uploadResponse = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const uploadData = await uploadResponse.json();
+      setUploading(false);
+
+      const encodeResponse = await fetch('/api/encode', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          filename: uploadData.filename,
+          options,
+          jobId,
+        }),
+      });
+
+      if (!encodeResponse.ok) {
+        const errorData = await encodeResponse.json();
+        throw new Error(errorData.error || 'Encoding failed');
+      }
+
+      setCurrentJob({
+        id: jobId,
+        filename: selectedFile.name,
+        preset: options.encoder,
+        status: 'encoding',
+        progress: 0,
+        logs: ['Starting encoding...'],
+        startTime: Date.now(),
+      });
+      setShowLogs(true);
+    } catch (err: any) {
+      setError(err.message || 'An error occurred');
+      setUploading(false);
+    }
+  };
+
+  const formatTime = (ms: number) => {
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    if (hours > 0) return `${hours}h ${minutes % 60}m`;
+    if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+    return `${seconds}s`;
+  };
+
+  const isProcessing = uploading || (currentJob !== null && currentJob.status !== 'completed' && currentJob.status !== 'failed');
+
+  return (
+    <div style={styles.container}>
+      <div style={styles.backgroundPattern}></div>
+      
+      <div style={styles.mainCard}>
+        <div style={styles.headerSection}>
+          <div style={styles.logoArea}>
+            <div style={styles.logoIcon}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="2" y="3" width="20" height="14" rx="2" />
+                <path d="M8 21h8M12 17v4" />
+              </svg>
+            </div>
+            <div>
+              <h1 style={styles.title}>Video Encoder Studio</h1>
+              <p style={styles.subtitle}>Professional video transcoding powered by HandBrake</p>
+            </div>
+          </div>
+        </div>
+
+        <div style={styles.contentGrid}>
+          {/* Left Panel - File Input */}
+          <div style={styles.leftPanel}>
+            <div style={styles.uploadSection}>
+              <input
+                type="file"
+                accept="video/*"
+                onChange={handleFileChange}
+                style={styles.hiddenInput}
+                disabled={isProcessing}
+                id="file-upload"
+              />
+              <label 
+                htmlFor="file-upload" 
+                style={{
+                  ...styles.uploadBox,
+                  ...(isProcessing && styles.uploadBoxDisabled)
+                }}
+              >
+                <div style={styles.uploadIcon}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+                  </svg>
+                </div>
+                {selectedFile ? (
+                  <div style={styles.fileDetails}>
+                    <div style={styles.fileName}>{selectedFile.name}</div>
+                    <div style={styles.fileSize}>
+                      {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                    </div>
+                  </div>
+                ) : (
+                  <div style={styles.uploadText}>
+                    <div style={styles.uploadTitle}>Drop video file here</div>
+                    <div style={styles.uploadHint}>or click to browse</div>
+                  </div>
+                )}
+              </label>
+            </div>
+
+            {/* Quick Settings */}
+            <div style={styles.settingsCard}>
+              <h3 style={styles.settingsTitle}>Quick Settings</h3>
+              
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Video Encoder</label>
+                <select
+                  value={options.encoder}
+                  onChange={(e) => setOptions({ ...options, encoder: e.target.value })}
+                  style={styles.select}
+                  disabled={isProcessing}
+                >
+                  {ENCODERS.map((enc) => (
+                    <option key={enc.value} value={enc.value}>{enc.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Quality (RF: {options.quality})</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="51"
+                  value={options.quality}
+                  onChange={(e) => setOptions({ ...options, quality: parseInt(e.target.value) })}
+                  style={styles.slider}
+                  disabled={isProcessing}
+                />
+                <div style={styles.sliderHint}>Lower = Better Quality, Higher = Smaller File</div>
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Encoding Speed</label>
+                <select
+                  value={options.preset}
+                  onChange={(e) => setOptions({ ...options, preset: e.target.value })}
+                  style={styles.select}
+                  disabled={isProcessing}
+                >
+                  {QUICK_PRESETS.map((preset) => (
+                    <option key={preset.value} value={preset.value}>{preset.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Output Format</label>
+                <div style={styles.formatButtons}>
+                  {OUTPUT_FORMATS.map((fmt) => (
+                    <button
+                      key={fmt.value}
+                      onClick={() => setOptions({ ...options, format: fmt.value })}
+                      style={{
+                        ...styles.formatButton,
+                        ...(options.format === fmt.value && styles.formatButtonActive)
+                      }}
+                      disabled={isProcessing}
+                    >
+                      {fmt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Panel - Advanced Settings */}
+          <div style={styles.rightPanel}>
+            <div style={styles.advancedSection}>
+              <button
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                style={styles.advancedToggle}
+              >
+                <span>{showAdvanced ? '▼' : '▶'} Advanced Settings</span>
+              </button>
+
+              {showAdvanced && (
+                <div style={styles.advancedContent}>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Audio Encoder</label>
+                    <select
+                      value={options.audioEncoder}
+                      onChange={(e) => setOptions({ ...options, audioEncoder: e.target.value })}
+                      style={styles.select}
+                      disabled={isProcessing}
+                    >
+                      {AUDIO_ENCODERS.map((enc) => (
+                        <option key={enc.value} value={enc.value}>{enc.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Audio Bitrate (kbps)</label>
+                    <input
+                      type="number"
+                      value={options.audioBitrate}
+                      onChange={(e) => setOptions({ ...options, audioBitrate: parseInt(e.target.value) })}
+                      style={styles.input}
+                      disabled={isProcessing}
+                      min="64"
+                      max="320"
+                    />
+                  </div>
+
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Frame Rate</label>
+                    <select
+                      value={options.frameRate || 'auto'}
+                      onChange={(e) => setOptions({ ...options, frameRate: e.target.value === 'auto' ? undefined : e.target.value })}
+                      style={styles.select}
+                      disabled={isProcessing}
+                    >
+                      {FRAMERATES.map((fr) => (
+                        <option key={fr.value} value={fr.value}>{fr.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Denoise</label>
+                    <select
+                      value={options.denoise || 'none'}
+                      onChange={(e) => setOptions({ ...options, denoise: e.target.value })}
+                      style={styles.select}
+                      disabled={isProcessing}
+                    >
+                      {DENOISE_PRESETS.map((dn) => (
+                        <option key={dn.value} value={dn.value}>{dn.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Resolution</label>
+                    <div style={styles.resolutionInputs}>
+                      <input
+                        type="number"
+                        placeholder="Width"
+                        value={options.width || ''}
+                        onChange={(e) => setOptions({ ...options, width: e.target.value ? parseInt(e.target.value) : undefined })}
+                        style={styles.inputSmall}
+                        disabled={isProcessing}
+                      />
+                      <span style={styles.resolutionSeparator}>×</span>
+                      <input
+                        type="number"
+                        placeholder="Height"
+                        value={options.height || ''}
+                        onChange={(e) => setOptions({ ...options, height: e.target.value ? parseInt(e.target.value) : undefined })}
+                        style={styles.inputSmall}
+                        disabled={isProcessing}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={styles.checkboxGroup}>
+                    <label style={styles.checkboxLabel}>
+                      <input
+                        type="checkbox"
+                        checked={options.deinterlace}
+                        onChange={(e) => setOptions({ ...options, deinterlace: e.target.checked })}
+                        disabled={isProcessing}
+                      />
+                      <span>Deinterlace</span>
+                    </label>
+                    <label style={styles.checkboxLabel}>
+                      <input
+                        type="checkbox"
+                        checked={options.decomb}
+                        onChange={(e) => setOptions({ ...options, decomb: e.target.checked })}
+                        disabled={isProcessing}
+                      />
+                      <span>Decomb</span>
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={handleEncode}
+              disabled={!selectedFile || isProcessing}
+              style={{
+                ...styles.encodeButton,
+                ...((!selectedFile || isProcessing) && styles.encodeButtonDisabled),
+              }}
+            >
+              {uploading ? (
+                <>⏳ Uploading...</>
+              ) : currentJob && currentJob.status === 'encoding' ? (
+                <>⚡ Encoding {currentJob.progress.toFixed(1)}%</>
+              ) : (
+                <>▶ Start Encoding</>
+              )}
+            </button>
+
+            {error && <div style={styles.errorBox}>{error}</div>}
+
+            {currentJob && (
+              <div style={styles.jobCard}>
+                <div style={styles.jobHeader}>
+                  <div style={styles.jobStatus}>
+                    <span style={styles.statusIcon}>
+                      {currentJob.status === 'completed' ? '✓' :
+                       currentJob.status === 'failed' ? '✗' :
+                       currentJob.status === 'encoding' ? '⚡' : '•'}
+                    </span>
+                    <span style={styles.statusText}>
+                      {currentJob.status === 'completed' ? 'Completed' :
+                       currentJob.status === 'failed' ? 'Failed' :
+                       currentJob.status === 'encoding' ? 'Encoding' : 'Queued'}
+                    </span>
+                  </div>
+                  <span style={styles.jobTime}>{formatTime(Date.now() - currentJob.startTime)}</span>
+                </div>
+
+                {currentJob.status === 'encoding' && (
+                  <div style={styles.progressBar}>
+                    <div style={{
+                      ...styles.progressFill,
+                      width: `${currentJob.progress}%`,
+                    }}></div>
+                    <span style={styles.progressText}>{currentJob.progress.toFixed(1)}%</span>
+                  </div>
+                )}
+
+                {currentJob.status === 'completed' && currentJob.downloadUrl && (
+                  <a href={currentJob.downloadUrl} download style={styles.downloadButton}>
+                    ⬇ Download Encoded Video
+                  </a>
+                )}
+
+                {currentJob.status === 'failed' && (
+                  <div style={styles.failedMessage}>{currentJob.error}</div>
+                )}
+
+                <button onClick={() => setShowLogs(!showLogs)} style={styles.logsButton}>
+                  {showLogs ? '▼' : '▶'} Console Logs ({currentJob.logs.length})
+                </button>
+
+                {showLogs && (
+                  <div style={styles.logsBox}>
+                    {currentJob.logs.map((log, i) => (
+                      <div key={i} style={styles.logLine}>{log}</div>
+                    ))}
+                    <div ref={logsEndRef} />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface EncodingJob {
+  id: string;
+  filename: string;
+  preset: string;
+  status: 'uploading' | 'queued' | 'encoding' | 'completed' | 'failed';
+  progress: number;
+  logs: string[];
+  error?: string;
+  outputFilename?: string;
+  downloadUrl?: string;
+  startTime: number;
+}
+
+export default function Home() {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [preset, setPreset] = useState<string>('h264_normal');
+  const [uploading, setUploading] = useState(false);
+  const [currentJob, setCurrentJob] = useState<EncodingJob | null>(null);
+  const [error, setError] = useState<string>('');
+  const [showLogs, setShowLogs] = useState(false);
+  const logsEndRef = useRef<HTMLDivElement>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Auto-scroll logs
+  useEffect(() => {
+    if (showLogs && logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [currentJob?.logs, showLogs]);
+
+  // Poll for job status
+  useEffect(() => {
+    if (currentJob && (currentJob.status === 'encoding' || currentJob.status === 'queued')) {
+      pollIntervalRef.current = setInterval(async () => {
+        try {
+          const response = await fetch(`/api/status?jobId=${currentJob.id}`);
+          if (response.ok) {
+            const job = await response.json();
+            setCurrentJob(job);
+            
+            if (job.status === 'completed' || job.status === 'failed') {
+              if (pollIntervalRef.current) {
+                clearInterval(pollIntervalRef.current);
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Failed to fetch job status:', err);
+        }
+      }, 1000);
+
+      return () => {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+        }
+      };
+    }
+  }, [currentJob?.id, currentJob?.status]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+      setError('');
+      setCurrentJob(null);
+    }
+  };
+
+  const handleEncode = async () => {
+    if (!selectedFile) {
+      setError('Please select a file first');
+      return;
+    }
+
+    try {
+      setError('');
+      const jobId = `job_${Date.now()}`;
+      
+      // Step 1: Upload file
+      setUploading(true);
+      
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      const uploadResponse = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const uploadData = await uploadResponse.json();
+      setUploading(false);
+
+      // Step 2: Start encoding
+      const encodeResponse = await fetch('/api/encode', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          filename: uploadData.filename,
+          preset,
+          jobId,
+        }),
+      });
+
+      if (!encodeResponse.ok) {
+        const errorData = await encodeResponse.json();
+        throw new Error(errorData.error || 'Encoding failed');
+      }
+
+      // Set initial job state
+      setCurrentJob({
+        id: jobId,
+        filename: selectedFile.name,
+        preset,
+        status: 'encoding',
+        progress: 0,
+        logs: ['Starting encoding...'],
+        startTime: Date.now(),
+      });
+      setShowLogs(true);
+    } catch (err: any) {
+      setError(err.message || 'An error occurred');
+      setUploading(false);
+    }
+  };
+
+  const formatTime = (ms: number) => {
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    if (hours > 0) return `${hours}h ${minutes % 60}m`;
+    if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+    return `${seconds}s`;
+  };
+
+  const isProcessing = uploading || (currentJob !== null && currentJob.status !== 'completed' && currentJob.status !== 'failed');
+
+  return (
+    <div style={styles.container}>
+      <div style={styles.card}>
+        <div style={styles.header}>
+          <div style={styles.iconWrapper}>
+            <svg style={styles.icon} viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <h1 style={styles.title}>HandBrake Encoder</h1>
+          <p style={styles.subtitle}>Transform your videos with professional encoding</p>
+        </div>
+
+        <div style={styles.section}>
+          <label style={styles.label}>
+            <span style={styles.labelIcon}>📁</span>
+            Select Video File
+          </label>
+          <div style={styles.fileInputWrapper}>
+            <input
+              type="file"
+              accept="video/*"
+              onChange={handleFileChange}
+              style={styles.fileInput}
+              disabled={isProcessing}
+              id="file-upload"
+            />
+            <label htmlFor="file-upload" style={{
+              ...styles.fileInputLabel,
+              ...(isProcessing && styles.fileInputLabelDisabled),
+            }}>
+              {selectedFile ? (
+                <div style={styles.fileInfo}>
+                  <span style={styles.fileName}>📹 {selectedFile.name}</span>
+                  <span style={styles.fileSize}>{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</span>
+                </div>
+              ) : (
+                <span style={styles.fileInputPlaceholder}>
+                  Click to browse or drag file here
+                </span>
+              )}
+            </label>
+          </div>
+        </div>
+
+        <div style={styles.section}>
+          <label style={styles.label}>
+            <span style={styles.labelIcon}>⚙️</span>
+            Encoding Preset
+          </label>
+          <select
+            value={preset}
+            onChange={(e) => setPreset(e.target.value)}
+            style={styles.select}
+            disabled={isProcessing}
+          >
+            {Object.entries(ENCODING_PRESETS).map(([key, value]) => (
+              <option key={key} value={key}>
+                {value.name} • {value.codec} • {value.quality}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <button
+          onClick={handleEncode}
+          disabled={!selectedFile || isProcessing}
+          style={{
+            ...styles.button,
+            ...((!selectedFile || isProcessing) && styles.buttonDisabled),
+          }}
+        >
+          {uploading ? (
+            <>
+              <span style={styles.spinner}></span>
+              Uploading...
+            </>
+          ) : currentJob && currentJob.status === 'encoding' ? (
+            <>
+              <span style={styles.spinner}></span>
+              Encoding... {currentJob.progress.toFixed(1)}%
+            </>
+          ) : (
+            <>
+              <span style={styles.buttonIcon}>🎬</span>
+              Start Encoding
+            </>
+          )}
+        </button>
+
+        {error && (
+          <div style={styles.error}>
+            <strong>❌ Error:</strong> {error}
+          </div>
+        )}
+
+        {currentJob && (
+          <div style={styles.jobSection}>
+            <div style={styles.jobHeader}>
+              <div style={styles.jobTitle}>
+                <span style={styles.jobIcon}>
+                  {currentJob.status === 'completed' ? '✅' :
+                   currentJob.status === 'failed' ? '❌' :
+                   currentJob.status === 'encoding' ? '⚡' : '⏳'}
+                </span>
+                <span>{currentJob.filename}</span>
+              </div>
+              <span style={styles.jobTime}>
+                {formatTime(Date.now() - currentJob.startTime)}
+              </span>
+            </div>
+
+            {currentJob.status === 'encoding' && (
+              <div style={styles.progressSection}>
+                <div style={styles.progressBar}>
+                  <div style={{
+                    ...styles.progressFill,
+                    width: `${currentJob.progress}%`,
+                  }}></div>
+                </div>
+                <span style={styles.progressText}>{currentJob.progress.toFixed(1)}%</span>
+              </div>
+            )}
+
+            {currentJob.status === 'completed' && currentJob.downloadUrl && (
+              <div style={styles.downloadSection}>
+                <a href={currentJob.downloadUrl} download style={styles.downloadLink}>
+                  <span style={styles.downloadIcon}>⬇️</span>
+                  Download Encoded Video
+                </a>
+              </div>
+            )}
+
+            {currentJob.status === 'failed' && (
+              <div style={styles.errorBox}>
+                <strong>Encoding Failed:</strong> {currentJob.error}
+              </div>
+            )}
+
+            <button
+              onClick={() => setShowLogs(!showLogs)}
+              style={styles.logsToggle}
+            >
+              {showLogs ? '📋 Hide Logs' : '📋 Show Logs'}
+              <span style={styles.logsBadge}>{currentJob.logs.length}</span>
+            </button>
+
+            {showLogs && (
+              <div style={styles.logsContainer}>
+                {currentJob.logs.map((log, index) => (
+                  <div key={index} style={styles.logLine}>
+                    {log}
+                  </div>
+                ))}
+                <div ref={logsEndRef} />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const styles: { [key: string]: React.CSSProperties } = {
+  container: {
+    minHeight: '100vh',
+    backgroundColor: '#0f172a',
+    position: 'relative',
+    padding: '20px',
+    fontFamily: 'system-ui, -apple-system, sans-serif',
+  },
+  backgroundPattern: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundImage: `
+      linear-gradient(rgba(59, 130, 246, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(59, 130, 246, 0.05) 1px, transparent 1px)
+    `,
+    backgroundSize: '50px 50px',
+    pointerEvents: 'none',
+    zIndex: 0,
+  },
+  mainCard: {
+    maxWidth: '1400px',
+    margin: '0 auto',
+    backgroundColor: '#1e293b',
+    borderRadius: '20px',
+    border: '1px solid #334155',
+    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+    position: 'relative',
+    zIndex: 1,
+  },
+  headerSection: {
+    padding: '32px 40px',
+    borderBottom: '1px solid #334155',
+    background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+    borderRadius: '20px 20px 0 0',
+  },
+  logoArea: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '20px',
+  },
+  logoIcon: {
+    width: '60px',
+    height: '60px',
+    background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+    borderRadius: '16px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: 'white',
+    boxShadow: '0 10px 30px rgba(59, 130, 246, 0.3)',
+  },
+  title: {
+    fontSize: '28px',
+    fontWeight: 'bold',
+    color: '#f1f5f9',
+    margin: 0,
+    letterSpacing: '-0.5px',
+  },
+  subtitle: {
+    fontSize: '14px',
+    color: '#94a3b8',
+    margin: '4px 0 0 0',
+  },
+  contentGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '32px',
+    padding: '40px',
+  },
+  leftPanel: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '24px',
+  },
+  rightPanel: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '24px',
+  },
+  uploadSection: {
+    width: '100%',
+  },
+  hiddenInput: {
+    display: 'none',
+  },
+  uploadBox: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '48px 32px',
+    border: '2px dashed #475569',
+    borderRadius: '16px',
+    backgroundColor: '#0f172a',
+    cursor: 'pointer',
+    transition: 'all 0.3s ease',
+    minHeight: '200px',
+  },
+  uploadBoxDisabled: {
+    opacity: 0.5,
+    cursor: 'not-allowed',
+  },
+  uploadIcon: {
+    width: '64px',
+    height: '64px',
+    color: '#3b82f6',
+    marginBottom: '16px',
+  },
+  uploadText: {
+    textAlign: 'center',
+  },
+  uploadTitle: {
+    fontSize: '18px',
+    fontWeight: '600',
+    color: '#f1f5f9',
+    marginBottom: '8px',
+  },
+  uploadHint: {
+    fontSize: '14px',
+    color: '#64748b',
+  },
+  fileDetails: {
+    textAlign: 'center',
+    width: '100%',
+  },
+  fileName: {
+    fontSize: '16px',
+    fontWeight: '600',
+    color: '#3b82f6',
+    marginBottom: '8px',
+    wordBreak: 'break-word',
+  },
+  fileSize: {
+    fontSize: '14px',
+    color: '#94a3b8',
+  },
+  settingsCard: {
+    backgroundColor: '#0f172a',
+    borderRadius: '16px',
+    padding: '24px',
+    border: '1px solid #334155',
+  },
+  settingsTitle: {
+    fontSize: '18px',
+    fontWeight: '600',
+    color: '#f1f5f9',
+    margin: '0 0 20px 0',
+  },
+  formGroup: {
+    marginBottom: '20px',
+  },
+  label: {
+    display: 'block',
+    fontSize: '14px',
+    fontWeight: '500',
+    color: '#cbd5e1',
+    marginBottom: '8px',
+  },
+  select: {
+    width: '100%',
+    padding: '10px 14px',
+    backgroundColor: '#1e293b',
+    border: '1px solid #475569',
+    borderRadius: '8px',
+    color: '#f1f5f9',
+    fontSize: '14px',
+    cursor: 'pointer',
+  },
+  slider: {
+    width: '100%',
+    height: '6px',
+    borderRadius: '3px',
+    backgroundColor: '#334155',
+    outline: 'none',
+    cursor: 'pointer',
+  },
+  sliderHint: {
+    fontSize: '12px',
+    color: '#64748b',
+    marginTop: '6px',
+  },
+  formatButtons: {
+    display: 'flex',
+    gap: '8px',
+  },
+  formatButton: {
+    flex: 1,
+    padding: '10px',
+    backgroundColor: '#1e293b',
+    border: '1px solid #475569',
+    borderRadius: '8px',
+    color: '#94a3b8',
+    fontSize: '13px',
+    fontWeight: '500',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+  },
+  formatButtonActive: {
+    backgroundColor: '#3b82f6',
+    borderColor: '#3b82f6',
+    color: 'white',
+  },
+  advancedSection: {
+    backgroundColor: '#0f172a',
+    borderRadius: '16px',
+    border: '1px solid #334155',
+    overflow: 'hidden',
+  },
+  advancedToggle: {
+    width: '100%',
+    padding: '16px 24px',
+    backgroundColor: 'transparent',
+    border: 'none',
+    color: '#f1f5f9',
+    fontSize: '15px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    textAlign: 'left',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  advancedContent: {
+    padding: '0 24px 24px 24px',
+  },
+  input: {
+    width: '100%',
+    padding: '10px 14px',
+    backgroundColor: '#1e293b',
+    border: '1px solid #475569',
+    borderRadius: '8px',
+    color: '#f1f5f9',
+    fontSize: '14px',
+  },
+  resolutionInputs: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  inputSmall: {
+    flex: 1,
+    padding: '10px 14px',
+    backgroundColor: '#1e293b',
+    border: '1px solid #475569',
+    borderRadius: '8px',
+    color: '#f1f5f9',
+    fontSize: '14px',
+  },
+  resolutionSeparator: {
+    color: '#64748b',
+    fontWeight: 'bold',
+  },
+  checkboxGroup: {
+    display: 'flex',
+    gap: '20px',
+  },
+  checkboxLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    color: '#cbd5e1',
+    fontSize: '14px',
+    cursor: 'pointer',
+  },
+  encodeButton: {
+    width: '100%',
+    padding: '16px',
+    background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+    border: 'none',
+    borderRadius: '12px',
+    color: 'white',
+    fontSize: '16px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'transform 0.2s, box-shadow 0.2s',
+    boxShadow: '0 10px 30px rgba(59, 130, 246, 0.3)',
+  },
+  encodeButtonDisabled: {
+    background: '#334155',
+    cursor: 'not-allowed',
+    boxShadow: 'none',
+  },
+  errorBox: {
+    padding: '12px 16px',
+    backgroundColor: '#7f1d1d',
+    border: '1px solid #991b1b',
+    borderRadius: '8px',
+    color: '#fca5a5',
+    fontSize: '14px',
+  },
+  jobCard: {
+    backgroundColor: '#0f172a',
+    borderRadius: '16px',
+    padding: '24px',
+    border: '1px solid #334155',
+  },
+  jobHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '16px',
+  },
+  jobStatus: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  statusIcon: {
+    fontSize: '20px',
+    width: '24px',
+    height: '24px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: '50%',
+    backgroundColor: '#1e293b',
+  },
+  statusText: {
+    fontSize: '15px',
+    fontWeight: '600',
+    color: '#f1f5f9',
+  },
+  jobTime: {
+    fontSize: '13px',
+    color: '#64748b',
+  },
+  progressBar: {
+    position: 'relative',
+    height: '32px',
+    backgroundColor: '#1e293b',
+    borderRadius: '8px',
+    overflow: 'hidden',
+    marginBottom: '16px',
+  },
+  progressFill: {
+    height: '100%',
+    background: 'linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%)',
+    transition: 'width 0.3s ease',
+  },
+  progressText: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    fontSize: '13px',
+    fontWeight: '600',
+    color: 'white',
+    textShadow: '0 1px 2px rgba(0,0,0,0.5)',
+  },
+  downloadButton: {
+    display: 'block',
+    width: '100%',
+    padding: '14px',
+    backgroundColor: '#10b981',
+    border: 'none',
+    borderRadius: '8px',
+    color: 'white',
+    fontSize: '15px',
+    fontWeight: '600',
+    textDecoration: 'none',
+    textAlign: 'center',
+    marginBottom: '16px',
+  },
+  failedMessage: {
+    padding: '12px',
+    backgroundColor: '#7f1d1d',
+    borderRadius: '8px',
+    color: '#fca5a5',
+    fontSize: '13px',
+    marginBottom: '16px',
+  },
+  logsButton: {
+    width: '100%',
+    padding: '10px',
+    backgroundColor: '#1e293b',
+    border: '1px solid #475569',
+    borderRadius: '8px',
+    color: '#cbd5e1',
+    fontSize: '13px',
+    fontWeight: '500',
+    cursor: 'pointer',
+    marginBottom: '12px',
+  },
+  logsBox: {
+    backgroundColor: '#020617',
+    borderRadius: '8px',
+    padding: '16px',
+    maxHeight: '300px',
+    overflowY: 'auto',
+    fontFamily: 'monospace',
+    fontSize: '11px',
+    border: '1px solid #334155',
+  },
+  logLine: {
+    color: '#64748b',
+    padding: '2px 0',
+    lineHeight: '1.6',
+    wordBreak: 'break-all',
+  },
+};
