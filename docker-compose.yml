@@ -1,0 +1,12 @@
+services:
+  handbrake-encoder:
+    build: .
+    container_name: handbrake-encoder
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./uploads:/app/uploads:rw
+      - ./output:/app/output:rw
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
