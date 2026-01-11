@@ -87,8 +87,10 @@ export async function POST(request: NextRequest) {
             status: 'completed',
             progress: 100,
             outputFilename,
+            outputPath,
             downloadUrl: `/api/download?file=${outputFilename}`,
           });
+          jobManager.addLog(jobId, 'File will be available for download for 10 minutes');
         } else {
           jobManager.addLog(jobId, `Encoding failed with code ${code}`);
           jobManager.updateJob(jobId, {

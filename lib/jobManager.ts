@@ -7,8 +7,10 @@ export interface EncodingJob {
   logs: string[];
   error?: string;
   outputFilename?: string;
+  outputPath?: string;
   downloadUrl?: string;
   startTime: number;
+  completionTime?: number;
 }
 
 class JobManager {
@@ -36,6 +38,12 @@ class JobManager {
     const job = this.jobs.get(id);
     if (job) {
       Object.assign(job, updates);
+      
+      // If job just completed, set completion time and schedule cleanup
+      if (updates.status === 'completed' && !job.completionTime) {
+        job.completionTime = Date.now();
+        this.scheduleCleanup(id);
+      }
     }
   }
 
@@ -48,6 +56,25 @@ class JobManager {
 
   deleteJob(id: string): void {
     this.jobs.delete(id);
+  }
+
+  private scheduleCleanup(jobId: string): void {
+    // Schedule cleanup after 10 minutes (600,000 ms)
+    setTimeout(async () => {
+      const job = this.jobs.get(jobId);
+      if (job && job.status === 'completed' && job.outputPath) {
+        try {
+          const { unlink } = await import('fs/promises');
+          await unlink(job.outputPath);
+          this.addLog(jobId, 'Output file deleted after 10-minute expiration');
+          console.log(`Deleted expired output file: ${job.outputPath}`);
+        } catch (error) {
+          console.error(`Failed to delete expired file: ${job.outputPath}`, error);
+          this.addLog(jobId, 'Failed to delete expired output file');
+        }
+        this.deleteJob(jobId);
+      }
+    }, 10 * 60 * 1000);
   }
 }
 
